@@ -1,65 +1,36 @@
-pipeline {
-    agent any
-
-    environment {
-        BUN_BIN = "/opt/bun/bin/bun"
-        EC2_USER = "ubuntu"
-        EC2_HOST = "43.205.141.147"
-        REMOTE_DIR = "/var/www/src"
-    }
-
-    stages {
-
-        stage('Checkout') {
-            steps {
-                git url: 'https://github.com/AswinJothish/packages.git', branch: 'main'
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                dir('client') { sh "${BUN_BIN} install" }
-                dir('admin') { sh "${BUN_BIN} install" }
-                dir('server') { sh "${BUN_BIN} install" }
-            }
-        }
-
-        stage('Build') {
-            steps {
-                dir('client') { sh "${BUN_BIN} run build" }
-                dir('admin') { sh "${BUN_BIN} run build" }
-                //dir('server') { sh "${BUN_BIN} run build" }
-            }
-        }
-
-        stage('Deploy to EC2') {
-            steps {
-                sshagent(['ec2-ssh-key']) {
-                    sh """
-                    ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
-                        mkdir -p ${REMOTE_DIR}/client &&
-                        mkdir -p ${REMOTE_DIR}/admin &&
-                        mkdir -p ${REMOTE_DIR}/server
+stage('Deploy to EC2') {
+    steps {
+        script {
+            // Use withCredentials instead of sshagent
+            withCredentials([sshUserPrivateKey(
+                credentialsId: 'ec2-ssh-key',
+                keyFileVariable: 'SSH_KEY',
+                usernameVariable: 'SSH_USER'
+            )]) {
+                sh """
+                    # Set proper permissions for the key
+                    chmod 600 ${SSH_KEY}
+                    
+                    # Stop existing services
+                    ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_HOST} '
+                        cd /home/ubuntu/sunstar-demo
+                        pm2 stop all || true
                     '
-
-                    rsync -avz --delete client/dist/ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}/client/
-                    rsync -avz --delete admin/dist/ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}/admin/
-                    rsync -avz --delete server/dist/ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}/server/
-
-                    ssh ${EC2_USER}@${EC2_HOST} '
-                        cd ${REMOTE_DIR}/server &&
-                        pm2 delete server-backend || true &&
-                        pm2 start index.js --name server-backend &&
+                    
+                    # Copy built files
+                    scp -i ${SSH_KEY} -o StrictHostKeyChecking=no -r ${WORKSPACE}/client/dist ${SSH_USER}@${EC2_HOST}:/home/ubuntu/sunstar-demo/client/
+                    scp -i ${SSH_KEY} -o StrictHostKeyChecking=no -r ${WORKSPACE}/admin/dist ${SSH_USER}@${EC2_HOST}:/home/ubuntu/sunstar-demo/admin/
+                    scp -i ${SSH_KEY} -o StrictHostKeyChecking=no -r ${WORKSPACE}/server ${SSH_USER}@${EC2_HOST}:/home/ubuntu/sunstar-demo/
+                    
+                    # Start services
+                    ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_HOST} '
+                        cd /home/ubuntu/sunstar-demo/server
+                        npm install
+                        pm2 start ecosystem.config.js
                         pm2 save
                     '
-                    """
-                }
+                """
             }
         }
-    }
-
-    post {
-        success { echo "Deployment completed successfully." }
-        failure { echo "Deployment failed." }
     }
 }
