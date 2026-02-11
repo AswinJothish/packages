@@ -1,0 +1,187 @@
+---
+import ToastProvider from "../components/ToastProvider.jsx";
+import NavBar from "../components/NavBar";
+import OurProducts from "../components/OurProducts";
+import NewProducts from "../components/NewProducts";
+import { baseUrl } from "../lib/config";
+
+// Fetch categories server-side
+const response = await fetch(`${baseUrl}/products/category`);
+const data = await response.json();
+const categories = data?.data?.[0]?.Category || data?.Category || [];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sunstar</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap"
+      rel="stylesheet"
+    />
+    <script
+      src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs"
+      type="module"></script>
+  </head>
+  <body class="bg-gray-100 md:bg-white">
+    <div id="app" class="min-h-screen">
+      <NavBar client:load />
+      <ToastProvider client:load />
+      <main class="relative">
+        <!-- Banner Section with Intersection Observer -->
+        <header class="md:pt-14 relative" id="banner-section">
+          <img
+            src="/images/banner2.png"
+            alt="Banner Image"
+            class="w-full xl:h-[380px] p-1 md:p-0 rounded-xl md:rounded-none md:object-cover object-contain"
+            loading="eager"
+          />
+        </header>
+
+        <!-- Categories Section with Intersection Observer -->
+        <section
+          class="px-5 flex justify-center items-center"
+          id="categories-section"
+        >
+          <div
+            class="flex overflow-x-scroll whitespace-nowrap gap-5 px-2 py-2 md:justify-center md:items-center"
+          >
+            {
+              categories.length > 0 ? (
+                categories.map((category, index) => (
+                  <a
+                    href={`/Category/${category}`}
+                    class="shadow text-black rounded-md border border-gray-50 text-sm  md:text-lg capitalize nav-bar md:px-5 px-2 md:py-2 py-1 hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    {category}
+                  </a>
+                ))
+              ) : (
+                <p class="text-gray-500">No categories available</p>
+              )
+            }
+          </div>
+        </section>
+
+        <!-- Products Sections with Intersection Observer -->
+        <section id="products-section" class="">
+          <OurProducts client:load />
+          <NewProducts client:load />
+        </section>
+      </main>
+    </div>
+
+    <script>
+      import { baseUrl } from "../lib/config";
+
+      // Function to handle visibility changes
+      function handleVisibilityChange() {
+        if (document.visibilityState === "visible") {
+          reloadContent();
+        }
+      }
+
+      // Function to reload content
+      async function reloadContent() {
+        try {
+          const response = await fetch(
+            `${window.location.origin}${baseUrl}/products/category`
+          );
+          const data = await response.json();
+          const categories = data.data[0]?.Category || [];
+          const categoriesContainer = document.querySelector(
+            "#categories-section > div"
+          );
+          if (categoriesContainer) {
+            categoriesContainer.innerHTML =
+              categories.length > 0
+                ? categories
+                    .map(
+                      (category) => `
+                  <button
+                    class="shadow rounded-full capitalize nav-bar px-5 py-2 hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    ${category}
+                  </button>
+                `
+                    )
+                    .join("")
+                : '<p class="text-gray-500">No categories available</p>';
+          }
+        } catch (error) {
+          console.error("Error reloading content:", error);
+        }
+      }
+
+      // Set up intersection observer for lazy loading
+      const observerOptions = {
+        root: null,
+        rootMargin: "0px",
+        threshold: 0.1,
+      };
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+            if (entry.target.id === "products-section") {
+              reloadContent();
+            }
+          }
+        });
+      }, observerOptions);
+
+      ["banner-section", "categories-section", "products-section"].forEach(
+        (id) => {
+          const element = document.getElementById(id);
+          if (element) {
+            observer.observe(element);
+          }
+        }
+      );
+
+      // Listen for visibility changes
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
+      // Initial load
+      if (document.visibilityState === "visible") {
+        reloadContent();
+      }
+    </script>
+
+    <style>
+      /* Fade in animation for sections */
+      #banner-section,
+      #categories-section,
+      #products-section {
+        opacity: 0;
+        transition: opacity 0.1s ease-in-out;
+      }
+
+      #banner-section.visible,
+      #categories-section.visible,
+      #products-section.visible {
+        opacity: 1;
+      }
+
+      /* Smooth scrolling */
+      html {
+        scroll-behavior: smooth;
+      }
+
+      /* Category button hover effects */
+      .nav-bar {
+        background-color: white;
+        transition: all 0.1s ease-in-out;
+      }
+
+      .nav-bar:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 4px 6px -1px rgb(0 0 0 / 0.1),
+          0 2px 4px -2px rgb(0 0 0 / 0.1);
+      }
+    </style>
+  </body>
+</html>

@@ -1,0 +1,42 @@
+---
+import NavBar from "../../components/NavBar";
+import CategoryProductDisplay from "../../components/CategoryProductDisplay";
+import ToastProvider from "../../components/ToastProvider";
+
+const { category } = Astro.params;
+---
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+    // Initialize page load check
+    if (!sessionStorage.getItem('initialLoad')) {
+        sessionStorage.setItem('initialLoad', 'true');
+        window.location.reload();
+    }
+    window.addEventListener('beforeunload', () => {
+        sessionStorage.removeItem('initialLoad');
+    });
+});
+  </script>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sunstar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+  </head>
+<body class="min-h-screen">
+
+
+ 
+    <ToastProvider  />
+ 
+    <CategoryProductDisplay
+    
+    categoryName={category}
+/>
+
+  
+  
+</body>
+</html>

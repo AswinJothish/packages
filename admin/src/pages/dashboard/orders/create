@@ -1,0 +1,355 @@
+import { useState, useEffect, useRef } from 'react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { _axios } from "@/lib/_axios";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChevronLeft, ChevronRight, Copy } from 'lucide-react';
+
+export default function CreateOrder() {
+  const [customerSearchTerm, setCustomerSearchTerm] = useState<string>("");
+  const [brandSearchTerm, setBrandSearchTerm] = useState<string>("");
+  const [productSearchTerm, setProductSearchTerm] = useState<string>("");
+  const [brands, setBrands] = useState<string[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [filteredProductsByBrand, setFilteredProductsByBrand] = useState<any[]>([]);
+  const [filteredBrands, setFilteredBrands] = useState<string[]>([]);
+  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [isCustomerScrollOpen, setIsCustomerScrollOpen] = useState<boolean>(false);
+  const [isBrandScrollOpen, setIsBrandScrollOpen] = useState<boolean>(false);
+  const [isProductScrollOpen, setIsProductScrollOpen] = useState<boolean>(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  
+  const customerScrollRef = useRef<HTMLDivElement>(null);
+  const brandScrollRef = useRef<HTMLDivElement>(null);
+  const productScrollRef = useRef<HTMLDivElement>(null);
+
+  const { data: customersData, isLoading: customersLoading } = useQuery({
+    queryKey: ["users", customerSearchTerm],
+    queryFn: () => _axios.get(`/users/all?q=${customerSearchTerm}`).then(res => res.data.users),
+    enabled: isCustomerScrollOpen,
+  });
+
+  const { data: productsData, isLoading: productsLoading } = useQuery({
+    queryKey: ["products"],
+    queryFn: () => _axios.get(`/products/all`).then(res => res.data.products),
+  });
+
+  useEffect(() => {
+    if (productsData) {
+      const brandsSet = new Set(productsData.map((product: any) => product.brand));
+      setBrands(Array.from(brandsSet));
+      setProducts(productsData);
+      setFilteredProductsByBrand(productsData);
+    }
+  }, [productsData]);
+  
+  useEffect(() => {
+    let updatedFilteredProducts = products;
+    updatedFilteredProducts = updatedFilteredProducts.filter(
+      (product) =>
+        product.productName.toLowerCase().includes(productSearchTerm.toLowerCase())
+    );
+    if (selectedBrand) {
+      updatedFilteredProducts = updatedFilteredProducts.filter(
+        (product) => product.brand.toLowerCase() === selectedBrand.toLowerCase()
+      );
+    }
+    if (!brandSearchTerm.trim()) {
+      updatedFilteredProducts = products.filter(
+        (product) =>
+          product.productName.toLowerCase().includes(productSearchTerm.toLowerCase())
+      );
+    }
+    setFilteredProductsByBrand(updatedFilteredProducts);
+  }, [selectedBrand, productSearchTerm, products, brandSearchTerm]);
+  
+  useEffect(() => {
+    const updatedFilteredBrands = brands.filter((brand) =>
+      (brand || "").toLowerCase().includes(brandSearchTerm.toLowerCase())
+    );
+    setFilteredBrands(updatedFilteredBrands);
+  }, [brandSearchTerm, brands]);
+
+  const handleCustomerInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCustomerSearchTerm(e.target.value);
+  };
+
+  const handleBrandInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBrandSearchTerm(e.target.value);
+  };
+
+  const handleProductInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setProductSearchTerm(e.target.value);
+  };
+
+  const handleInputClick = (inputType: 'customer' | 'brand' | 'product') => {
+    if (inputType === 'customer') {
+      setIsCustomerScrollOpen(true);
+      setIsBrandScrollOpen(false);
+      setIsProductScrollOpen(false);
+    } else if (inputType === 'brand') {
+      setIsCustomerScrollOpen(false);
+      setIsBrandScrollOpen(true);
+      setIsProductScrollOpen(false);
+    } else if (inputType === 'product') {
+      setIsCustomerScrollOpen(false);
+      setIsBrandScrollOpen(false);
+      setIsProductScrollOpen(true);
+    }
+  };
+
+  const handleCustomerSelect = (username: string, mobileNumber: string) => {
+    setSelectedCustomer({ username, mobileNumber });
+    setCustomerSearchTerm(username);
+    setIsCustomerScrollOpen(false);
+  };
+
+  const handleBrandSelect = (brand: string) => {
+    setSelectedBrand(brand);
+    setBrandSearchTerm(brand);  
+    setProductSearchTerm(""); 
+    setSelectedProduct(null);
+    setIsBrandScrollOpen(false);
+  };
+  
+  const handleProductSelect = (product: any) => {
+    setSelectedProduct(product);
+    setProductSearchTerm(product.productName);
+    setIsProductScrollOpen(false);
+  };
+
+  const handleAddToCart = () => {
+    if (selectedProduct) {
+      setCartItems([...cartItems, { ...selectedProduct, quantity: 1 }]);
+      setSelectedProduct(null); // Clear selection after adding to cart
+    }
+  };
+
+  const calculateSubtotal = (items: any[]) => items.reduce((acc, item) => acc + parseFloat(item.price) * item.quantity, 0);
+  const calculateTax = (items: any[]) => calculateSubtotal(items) * 0.1; // Assuming 10% tax
+  const calculateTotal = (items: any[]) => calculateSubtotal(items) + calculateTax(items) + 5; // $5 shipping fee
+
+  const handleClickOutside = (event: MouseEvent) => {
+    if (
+      customerScrollRef.current &&
+      !customerScrollRef.current.contains(event.target as Node)
+    ) {
+      setIsCustomerScrollOpen(false);
+    }
+    if (
+      brandScrollRef.current &&
+      !brandScrollRef.current.contains(event.target as Node)
+    ) {
+      setIsBrandScrollOpen(false);
+    }
+    if (
+      productScrollRef.current &&
+      !productScrollRef.current.contains(event.target as Node)
+    ) {
+      setIsProductScrollOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  return (
+    <div className="w-full h-full bg-gray-100 p-5">
+      <div className="flex flex-col gap-5 bg-white shadow-lg rounded-md p-5">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-semibold text-blue-600">Create Order</h1>
+          <Button className="bg-blue-600 text-white hover:bg-blue-800 rounded px-4 py-2 text-sm">
+            Create New Customer
+          </Button>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {/* Customer Section */}
+          <div className="bg-white border border-gray-300 rounded-md shadow-sm p-4">
+            <h2 className="text-lg font-medium text-gray-700 mb-3">Select a Customer</h2>
+            <Input
+              type="text"
+              onClick={() => handleInputClick('customer')}
+              onChange={handleCustomerInputChange}
+              value={customerSearchTerm}
+              className="border-gray-300 rounded-md focus:border-blue-500 focus:ring focus:ring-blue-200 w-full"
+              placeholder="Search Customer..."
+            />
+            {isCustomerScrollOpen && (
+              <div
+                ref={customerScrollRef}
+                className="absolute z-10 bg-white border border-gray-300 shadow-lg rounded-md mt-2 w-full max-h-60 overflow-y-auto"
+              >
+                <ScrollArea className="h-full">
+                  <div className="p-4">
+                    {customersLoading ? (
+                      <div>Loading...</div>
+                    ) : customersData.length > 0 ? (
+                      customersData.map((customer: any) => (
+                        <div
+                          key={customer._id}
+                          onClick={() => handleCustomerSelect(customer.username, customer.mobileNumber)}
+                          className="cursor-pointer p-2 hover:bg-gray-100"
+                        >
+                          {customer.username} ({customer.mobileNumber})
+                        </div>
+                      ))
+                    ) : (
+                      <div>No customers found</div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+            {selectedCustomer && (
+              <div className="mt-2 p-2 bg-gray-100 rounded-md border border-gray-300">
+                <h3 className="font-medium text-gray-700">Selected Customer</h3>
+                <p className="text-gray-600">{selectedCustomer.username} ({selectedCustomer.mobileNumber})</p>
+              </div>
+            )}
+          </div>
+
+          {/* Brand Section */}
+          <div className="bg-white border border-gray-300 rounded-md shadow-sm p-4">
+            <h2 className="text-lg font-medium text-gray-700 mb-3">Select a Brand</h2>
+            <Input
+              type="text"
+              onClick={() => handleInputClick('brand')}
+              onChange={handleBrandInputChange}
+              value={brandSearchTerm}
+              className="border-gray-300 rounded-md focus:border-blue-500 focus:ring focus:ring-blue-200 w-full"
+              placeholder="Search Brand..."
+            />
+            {isBrandScrollOpen && (
+              <div
+                ref={brandScrollRef}
+                className="absolute z-10 bg-white border border-gray-300 shadow-lg rounded-md mt-2 w-full max-h-60 overflow-y-auto"
+              >
+                <ScrollArea className="h-full">
+                  <div className="p-4">
+                    {filteredBrands.length > 0 ? (
+                      filteredBrands.map((brand: string) => (
+                        <div
+                          key={brand}
+                          onClick={() => handleBrandSelect(brand)}
+                          className="cursor-pointer p-2 hover:bg-gray-100"
+                        >
+                          {brand}
+                        </div>
+                      ))
+                    ) : (
+                      <div>No brands found</div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+            {selectedBrand && (
+              <div className="mt-2 p-2 bg-gray-100 rounded-md border border-gray-300">
+                <h3 className="font-medium text-gray-700">Selected Brand</h3>
+                <p className="text-gray-600">{selectedBrand}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Product Section */}
+          <div className="bg-white border border-gray-300 rounded-md shadow-sm p-4">
+            <h2 className="text-lg font-medium text-gray-700 mb-3">Select a Product</h2>
+            <Input
+              type="text"
+              onClick={() => handleInputClick('product')}
+              onChange={handleProductInputChange}
+              value={productSearchTerm}
+              className="border-gray-300 rounded-md focus:border-blue-500 focus:ring focus:ring-blue-200 w-full"
+              placeholder="Search Product..."
+            />
+            {isProductScrollOpen && (
+              <div
+                ref={productScrollRef}
+                className="absolute z-10 bg-white border border-gray-300 shadow-lg rounded-md mt-2 w-full max-h-60 overflow-y-auto"
+              >
+                <ScrollArea className="h-full">
+                  <div className="p-4">
+                    {productsLoading ? (
+                      <div>Loading...</div>
+                    ) : filteredProductsByBrand.length > 0 ? (
+                      filteredProductsByBrand.map((product: any) => (
+                        <div
+                          key={product._id}
+                          onClick={() => handleProductSelect(product)}
+                          className="cursor-pointer p-2 hover:bg-gray-100"
+                        >
+                          {product.productName}
+                        </div>
+                      ))
+                    ) : (
+                      <div>No products found</div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+            {selectedProduct && (
+              <div className="mt-2 p-2 bg-gray-100 rounded-md border border-gray-300">
+                <h3 className="font-medium text-gray-700">Selected Product</h3>
+                <p className="text-gray-600">{selectedProduct.productName}</p>
+                <Button
+                  onClick={handleAddToCart}
+                  className="mt-2 bg-green-600 text-white hover:bg-green-800 rounded px-4 py-2 text-sm"
+                >
+                  Add to Cart
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Cart Section */}
+          <div className="bg-white border border-gray-300 rounded-md shadow-sm p-4">
+            <h2 className="text-lg font-medium text-gray-700 mb-3">Cart</h2>
+            {cartItems.length > 0 ? (
+              <div>
+                {cartItems.map((item: any, index: number) => (
+                  <Card key={index} className="mb-4">
+                    <CardHeader>
+                      <CardTitle>{item.productName}</CardTitle>
+                      <CardDescription>
+                        Quantity: {item.quantity} | Price: ${item.price}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Subtotal: ${parseFloat(item.price) * item.quantity}</p>
+                      <Button
+                        onClick={() => setCartItems(cartItems.filter((_, i) => i !== index))}
+                        className="mt-2 bg-red-600 text-white hover:bg-red-800 rounded px-4 py-2 text-sm"
+                      >
+                        Remove
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+                <Separator className="my-4" />
+                <div className="flex justify-between">
+                  <span>Subtotal: ${calculateSubtotal(cartItems).toFixed(2)}</span>
+                  <span>Tax: ${calculateTax(cartItems).toFixed(2)}</span>
+                  <span>Total: ${calculateTotal(cartItems).toFixed(2)}</span>
+                </div>
+              </div>
+            ) : (
+              <div>No items in cart</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

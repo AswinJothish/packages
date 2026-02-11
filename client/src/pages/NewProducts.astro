@@ -1,0 +1,745 @@
+---
+import NavBar from "../components/NavBar";
+import { baseUrl, ImgbaseUrl } from "../lib/config";
+import { IoIosArrowDown } from "react-icons/io";
+import ToastProvider from "../components/ToastProvider";
+import ProductGridSkeleton from "@/skeleton/ProductGridSkeleton";
+import { LiaFilterSolid } from "react-icons/lia";
+
+const ITEMS_PER_PAGE = 8;
+
+const formatPrice = (price) => {
+  return typeof price === "number" ? price.toLocaleString("en-IN") : "0";
+};
+
+// Get user role from server-side
+const getUserRole = () => {
+  try {
+    const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+    return userData.role || "customer";
+  } catch {
+    return "customer";
+  }
+};
+
+const userRole = getUserRole();
+
+// Get display price based on user role
+const getDisplayPrice = (product, userRole) => {
+  if (userRole === "dealer" && product.dealerPrice) {
+    return formatPrice(product.dealerPrice);
+  }
+  return formatPrice(product.customerPrice);
+};
+
+let products = [];
+try {
+  const response = await fetch(`${baseUrl}/products/newProduct`);
+  const data = await response.json();
+  products = data.products || [];
+} catch (error) {
+  console.error("Error fetching products:", error);
+}
+
+const initialProducts = products.slice(0, ITEMS_PER_PAGE).map((product) => ({
+  ...product,
+  displayPrice: getDisplayPrice(product, userRole),
+}));
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sunstar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+  </head>
+<body class="min-h-screen">
+  <ToastProvider   />
+<NavBar  />
+
+<!-- 
+<ProductGridSkeleton  /> -->
+
+<div class="pt-12">
+  <div
+    class="w-full fixed bg-white z-10 top-12 flex justify-between items-center"
+  >
+    <h1 class="md:text-2xl text-xl w-full font-bold text-left m-5 font-serif">
+      New Products
+    </h1>
+    <div id="filter-button" class="mx-5 flex lg:hidden items-center md:block md:mt-5 bg-gray-100 hover:bg-gray-200 p-2 rounded-xl">
+        <LiaFilterSolid className="text-2xl" />
+    </div>
+  </div>
+  <div
+    id="filter-overlay"
+    class="fixed inset-0 mt-14 bg-black bg-opacity-50 transition-opacity z-40 opacity-0 pointer-events-none"
+  >
+  </div>
+  <div
+    id="filter-drawer"
+    class="fixed right-0 top-14 h-full w-80 bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out translate-x-full"
+  >
+    <!-- Drawer Header -->
+    <div class="flex justify-between items-center p-4 border-b">
+      <h2 class="text-lg font-bold">Filters</h2>
+      <div class="flex items-center gap-4">
+        <button
+          id="mobile-clear-filters"
+          class="text-sm text-neutral-500 hover:text-neutral-800"
+        >
+          Clear All
+        </button>
+        <button id="close-filter-drawer">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-6 w-6 text-white rounded  bg-red-500 p-1"
+          >
+            <path d="M18 6 6 18"></path>
+            <path d="m6 6 12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <!-- Drawer Content -->
+    <div class="p-4">
+      <!-- Price Filter -->
+      <div class="mb-6">
+        <button
+          id="mobile-price-toggle"
+          class="w-full flex justify-between items-center mb-2"
+        >
+          <span class="font-bold">Price</span>
+          <IoIosArrowDown
+            id="mobile-price-arrow"
+            className="transform transition-transform"
+          />
+        </button>
+        <div id="mobile-price-dropdown" class="hidden space-y-2 pl-2">
+          <label class="flex items-center text-sm text-neutral-600">
+            <input
+              type="radio"
+              name="mobile-price-filter"
+              value="low"
+              class="mr-3"
+            />
+            Low to High
+          </label>
+          <label class="flex items-center text-sm text-neutral-600">
+            <input
+              type="radio"
+              name="mobile-price-filter"
+              value="high"
+              class="mr-3"
+            />
+            High to Low
+          </label>
+        </div>
+      </div>
+      <!-- Brand Filter -->
+      <div class="mb-6">
+        <button
+        id="mobile-brand-toggle"
+          class="w-full flex justify-between items-center mb-2"
+        >
+          <span class="font-bold">Brand</span>
+          <IoIosArrowDown
+            id="mobile-brand-arrow"
+            className="transform transition-transform"
+          />
+        </button>
+        <div id="mobile-brand-dropdown" class="hidden space-y-2 pl-2">
+            <div class="mt-4 space-y-2" id="mobile-brand-options">
+                <!-- Brand options will be dynamically inserted here -->
+              </div>
+          <!-- Brand options will be populated dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="flex w-full justify-center md:mt-16 mt-2">
+    <div class="w-[98%] flex">
+      <!-- Fixed Filter Container -->
+      <div
+        class="lg:w-1/4 w-0 border-r px-4 flex-col lg:flex fixed top-32 z-10 h-[calc(100vh-8rem)] hidden"
+      >
+        <!-- Filter Header -->
+        <div class="py-5 px-1 border-b h-fit flex w-full justify-between">
+          <h1 class="font-base font-bold text-sm">Filters:</h1>
+          <button
+            id="clear-filters"
+            class="text-xs font-custom_thin text-neutral-500 hover:text-neutral-800"
+          >
+            Clear All
+          </button>
+        </div>
+        <!-- Price Filter -->
+        <div class="justify-between px-1 flex flex-col border-b py-5">
+          <button
+            id="price-filter-toggle"
+            class="font-base flex justify-between font-bold text-sm items-center focus:outline-none"
+          >
+            Price
+            <span
+              class="ml-2 transition-transform duration-200"
+              id="price-arrow"
+            >
+              <IoIosArrowDown />
+            </span>
+          </button>
+          <div id="price-dropdown" class="hidden pl-2 pr-4">
+            <label
+              class="block cursor-pointer hover:text-neutral-800 text-sm font-thin font-custom_thin"
+            >
+              <input
+                type="radio"
+                name="price-filter"
+                value="low"
+                class="mr-4 mt-5"
+              />
+              Low to High
+            </label>
+            <label
+              class="block cursor-pointer hover:text-neutral-800 text-sm font-thin font-custom_thin"
+            >
+              <input
+                type="radio"
+                name="price-filter"
+                value="high"
+                class="mr-4 mt-5"
+              />
+              High to Low
+            </label>
+          </div>
+        </div>
+        <!-- Brand Filter -->
+        <div class="justify-between px-1 flex flex-col border-b py-5">
+          <button
+            id="brand-filter-toggle"
+            class="font-base flex justify-between font-bold text-sm items-center focus:outline-none"
+          >
+            Brand
+            <span
+              class="ml-2 transition-transform duration-200"
+              id="brand-arrow"
+            >
+              <IoIosArrowDown />
+            </span>
+          </button>
+          <div id="brand-dropdown" class="hidden pl-2 pr-4">
+            <div class="mt-4 space-y-2" id="brand-options">
+              <!-- Brand options will be dynamically inserted here -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Products Container -->
+      <div class="w-full flex flex-col px-3 md:py-8 lg:ml-[25%]">
+        <div class="w-full flex">
+          <div
+            id="products-container"
+            class="flex flex-wrap justify-center lg:justify-start gap-5"
+          >
+            {
+              initialProducts.map((product) => (
+                <div class="md:h-80 h-56 bg-white shadow  border md:border-none md:shadow-none   md:w-56  w-40 rounded-xl transform transition-all duration-300 group hover:shadow-lg hover:border hover:border-neutral-100">
+                  <a href={`/products/${product._id}`} class="cursor-pointer">
+                    <div class="relative md:h-56 md:w-56 w-40 h-36 rounded overflow-hidden transform transition-transform duration-300 group-hover:scale-95">
+                      {product.productImages?.length > 0 ? (
+                        <img
+                          src={`${ImgbaseUrl}${product.productImages[0]}`}
+                          alt={product.productName}
+                          class="h-full p-3 w-full"
+                        />
+                      ) : (
+                        <p class="h-full flex items-center justify-center text-gray-500">
+                          No image available
+                        </p>
+                      )}
+                    </div>
+                    <div class="pt-2 px-4 transform transition-transform duration-300 group-hover:bg-white group-hover:-translate-y-8">
+                      <p class="overflow-hidden text-ellipsis capitalize whitespace-nowrap font-serif text-lg">
+                        {product.productName}
+                      </p>
+                      <p class="text-sm flex items-center font-medium price-display">
+                        <span class="text-sm mr-1 mt-0.5 font-sans font-medium">
+                          &#8377;
+                        </span>
+                        <span
+                          class="product-price"
+                          data-dealer-price={product.dealerPrice}
+                          data-customer-price={product.customerPrice}
+                        >
+                          {product.displayPrice}
+                        </span>
+                      </p>
+                      <p class="md:text-sm text-xs whitespace-nowrap">
+                        <span class="text-green-700 pr-1">Inclusive GST </span>
+                        <span class="line-through font-thin text-gray-500">
+                          &#8377; {formatPrice(product.strikePrice)}
+                        </span>
+                      </p>
+                    </div>
+                  </a>
+                  <button
+                    class="w-full -mt-8 flex justify-center items-center add-to-cart-btn"
+                    data-product-id={product._id}
+                    data-dealer-price={product.dealerPrice}
+                    data-customer-price={product.customerPrice}
+                  >
+                    <p class="text-sm font-custom_thin px-5 rounded-xl font-thin w-fit hover:border-neutral-800 hover:text-neutral-800 text-neutral-400 py-2 border  opacity-0 transform transition-opacity duration-500 group-hover:opacity-100">
+                      Add to Cart
+                    </p>
+                  </button>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+        {
+          products.length > ITEMS_PER_PAGE && (
+            <div class="flex justify-center mt-8">
+              <button
+                id="load-more"
+                class="px-6 py-2 text-neutral-500 border hover:text-white border-neutral-500 rounded-lg hover:bg-neutral-700 transition-colors flex items-center gap-2"
+              >
+                Load More
+              </button>
+            </div>
+          )
+        }
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+
+
+<script>
+  import { baseUrl, ImgbaseUrl } from "../lib/config";
+  import { toast } from "react-toastify";
+  let cartItems = [];
+  let userRole = "customer";
+
+  const currentPath = window.location.pathname;
+  if (!sessionStorage.getItem(`visited-${currentPath}`)) {
+    sessionStorage.setItem(`visited-${currentPath}`, "true");
+    window.location.reload();
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    // Initialize page load check
+    if (!sessionStorage.getItem("initialLoad")) {
+      sessionStorage.setItem("initialLoad", "true");
+      window.location.reload();
+      return;
+    }
+    window.addEventListener("beforeunload", () => {
+      sessionStorage.removeItem("initialLoad");
+    });
+  });
+
+  const getUserData = () => {
+    try {
+      const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+      userRole = userData.role || "customer";
+      return userRole;
+    } catch {
+      return "customer";
+    }
+  };
+
+  const formatPrice = (price) => {
+    return typeof price === "number" ? price.toLocaleString("en-IN") : "0";
+  };
+  const updatePricesBasedOnRole = () => {
+    const role = getUserData();
+    document
+      .querySelectorAll<HTMLElement>(".product-price")
+      .forEach((priceElement) => {
+        const dealerPrice = priceElement.dataset.dealerPrice;
+        const customerPrice = priceElement.dataset.customerPrice;
+        const displayPrice =
+          role === "dealer" && dealerPrice
+            ? formatPrice(parseInt(dealerPrice))
+            : formatPrice(parseInt(customerPrice || "0"));
+        priceElement.textContent = displayPrice;
+      });
+  };
+  const getCartItems = async () => {
+    const userId = localStorage.getItem("_id");
+    if (!userId) {
+      console.error("User ID not found in localStorage");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/order/getCartItems?Id=${userId}`
+      );
+      const data = await response.json();
+      cartItems = data.cart;
+    } catch (error) {
+      console.error("Error fetching cart items:", error);
+    }
+  };
+  // In your script section
+  const handleAddToCart = async (productId) => {
+    const userId = localStorage.getItem("_id");
+    const quantity = 1;
+
+    if (!userId) {
+      window.location.href = `/Login`;
+      return;
+    }
+
+    const payload = { userId, productId, quantity };
+
+    try {
+      // Check if product exists in cart
+      const existingProduct = cartItems.find(
+        (item) => item.productId._id === productId
+      );
+
+      if (existingProduct) {
+        const availableStock = existingProduct.productId.stock;
+        const currentQuantity = existingProduct.quantity;
+
+        if (currentQuantity + quantity > availableStock) {
+          toast.error(`Only ${availableStock} items can be added to the cart.`);
+          return;
+        }
+      }
+
+      const response = await fetch(`${baseUrl}/order/addToCart`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to add item to cart");
+      }
+
+      toast.success("Item added to cart successfully");
+      await getCartItems();
+    } catch (error) {
+      console.error(error);
+      toast.error("Error adding to cart");
+    }
+  };
+
+  let currentPage = 1;
+  const ITEMS_PER_PAGE = 8;
+  let allProducts = [];
+
+  // Initialize filter states
+  let currentPriceFilter = null;
+  let selectedBrands = new Set();
+
+  // Get all products data
+  const getAllProducts = async () => {
+    try {
+      const response = await fetch(`${baseUrl}/products/newProduct`);
+      const data = await response.json();
+      return data.products || [];
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      return [];
+    }
+  };
+
+  // Extract unique brands from products
+  const getUniqueBrands = (products) => {
+    return [...new Set(products.map((product) => product.brand))]
+      .filter(Boolean)
+      .sort();
+  };
+
+  // Create brand options HTML
+  const createBrandOptions = (brands) => {
+    const brandOptionsContainer = document.getElementById("brand-options");
+    brandOptionsContainer.innerHTML = brands
+      .map(
+        (brand) => `
+<label class="flex items-center cursor-pointer hover:text-neutral-800 text-sm font-thin font-custom_thin">
+<input type="checkbox" value="${brand}" class="mr-4 brand-checkbox" />
+${brand}
+</label>
+`
+      )
+      .join("");
+  };
+  const createMobileBrandOptions = (brands) => {
+    const brandOptionsContainer = document.getElementById("mobile-brand-options");
+    brandOptionsContainer.innerHTML = brands
+      .map(
+        (brand) => `
+<label class="flex items-center cursor-pointer hover:text-neutral-800 text-sm font-thin font-custom_thin">
+<input type="checkbox" value="${brand}" class="mr-4 brand-checkbox" />
+${brand}
+</label>
+`
+      )
+      .join("");
+  };
+
+  // Create product card HTML
+  const createProductCard = (product) => {
+    const displayPrice =
+      userRole === "dealer" ? product.dealerPrice : product.customerPrice;
+    return `
+<div class="md:h-80 h-56 bg-white shadow  border md:border-none md:shadow-none   md:w-56  w-40 rounded-xl transform transition-all duration-300 group hover:shadow-lg hover:border hover:border-neutral-100">
+<a href="/products/${product._id}" class="cursor-pointer">
+<div class="relative md:h-56 md:w-56 w-40 h-36 rounded overflow-hidden transform transition-transform duration-300 group-hover:scale-95">
+${
+  product.productImages.length > 0
+    ? `<img src="${ImgbaseUrl}${product.productImages[0]}" alt="${product.productName}" class="h-full p-3 w-full" />`
+    : `<p class="h-full flex items-center justify-center text-gray-500">No image available</p>`
+}
+</div>
+<div class="pt-2 px-4 transform transition-transform duration-300 group-hover:bg-white group-hover:-translate-y-8">
+<p class="overflow-hidden font-bold text-ellipsis capitalize whitespace-nowrap font-serif text-sm">
+${product.productName}
+</p>
+<p class="text-sm mr-1 mt-0.5 font-sans font-medium">
+<span class="text-base font-medium mr-1">&#8377;</span> ${displayPrice}
+</p>
+<p class="md:text-sm text-xs whitespace-nowrap">
+<span class="text-green-700 pr-1">Inclusive GST </span>
+<span class="line-through font-thin text-gray-500">&#8377; ${product.strikePrice}</span>
+</p>
+</div>
+</a>
+<button class="w-full -mt-8 flex justify-center items-center">
+<p class="text-sm font-custom_thin px-5 font-thin w-fit hover:border-neutral-800 hover:text-neutral-800 text-neutral-400 py-2 border rounded-lg opacity-0 transform transition-opacity duration-500 group-hover:opacity-100">
+Add to Cart
+</p>
+</button>
+</div>
+`;
+  };
+
+  // Filter and sort products
+  const filterProducts = (products) => {
+    let filteredProducts = [...products];
+    // Apply brand filter
+    if (selectedBrands.size > 0) {
+      filteredProducts = filteredProducts.filter((product) =>
+        selectedBrands.has(product.brand)
+      );
+    }
+    // Apply price filter
+    if (currentPriceFilter) {
+      filteredProducts.sort((a, b) => {
+        if (currentPriceFilter === "low") {
+          return a.customerPrice - b.customerPrice;
+        } else if (currentPriceFilter === "high") {
+          return b.customerPrice - a.customerPrice;
+        }
+        return 0;
+      });
+    }
+    return filteredProducts;
+  };
+
+  // Update products display
+  const updateProductsDisplay = (products) => {
+    const productsContainer = document.getElementById("products-container");
+    productsContainer.innerHTML = "";
+    const visibleProducts = products.slice(0, currentPage * ITEMS_PER_PAGE);
+    visibleProducts.forEach((product) => {
+      const productCard = createProductCard(product);
+      productsContainer.insertAdjacentHTML("beforeend", productCard);
+    });
+    // Update load more button visibility
+    const loadMoreButton = document.getElementById("load-more");
+    if (loadMoreButton) {
+      loadMoreButton.style.display =
+        products.length > currentPage * ITEMS_PER_PAGE ? "flex" : "none";
+    }
+  };
+
+  // Load more products handler
+  const loadMoreProducts = async () => {
+    currentPage++;
+    const filteredProducts = filterProducts(allProducts);
+    updateProductsDisplay(filteredProducts);
+  };
+
+  // Initialize page
+  window.addEventListener("DOMContentLoaded", async () => {
+    // Get DOM elements
+    const priceFilterToggle = document.getElementById("price-filter-toggle");
+    const priceDropdown = document.getElementById("price-dropdown");
+    const priceArrow = document.getElementById("price-arrow");
+    const brandFilterToggle = document.getElementById("brand-filter-toggle");
+    const brandDropdown = document.getElementById("brand-dropdown");
+    const brandArrow = document.getElementById("brand-arrow");
+    const clearFiltersBtn = document.getElementById("clear-filters");
+    const loadMoreButton = document.getElementById("load-more");
+    userRole = getUserData();
+    updatePricesBasedOnRole();
+    await getCartItems();
+    // Fetch all products
+    allProducts = await getAllProducts();
+    // Create brand options
+    const uniqueBrands = getUniqueBrands(allProducts);
+    createBrandOptions(uniqueBrands);
+    // Toggle price dropdown
+    priceFilterToggle.addEventListener("click", () => {
+      const isHidden = priceDropdown.classList.contains("hidden");
+      priceDropdown.classList.toggle("hidden");
+      priceArrow.style.transform = isHidden ? "rotate(180deg)" : "rotate(0)";
+    });
+    // Toggle brand dropdown
+    brandFilterToggle.addEventListener("click", () => {
+      const isHidden = brandDropdown.classList.contains("hidden");
+      brandDropdown.classList.toggle("hidden");
+      brandArrow.style.transform = isHidden ? "rotate(180deg)" : "rotate(0)";
+    });
+    // Handle price filter changes
+    const priceFilterInputs = document.querySelectorAll(
+      'input[name="price-filter"]'
+    );
+    priceFilterInputs.forEach((input) => {
+      input.addEventListener("change", (e) => {
+        currentPriceFilter = e.target.value;
+        currentPage = 1;
+        const filteredProducts = filterProducts(allProducts);
+        updateProductsDisplay(filteredProducts);
+      });
+    });
+    document.querySelectorAll(".add-to-cart-btn").forEach((button) => {
+      button.addEventListener("click", (e: any) => {
+        e.preventDefault();
+        const productId = button.getAttribute("data-product-id");
+        if (productId) {
+          handleAddToCart(productId);
+        }
+      });
+    });
+    // Handle brand filter changes
+    document.addEventListener("change", (e) => {
+      updatePricesBasedOnRole();
+      if (e.target.classList.contains("brand-checkbox")) {
+        if (e.target.checked) {
+          selectedBrands.add(e.target.value);
+        } else {
+          selectedBrands.delete(e.target.value);
+        }
+        currentPage = 1;
+        const filteredProducts = filterProducts(allProducts);
+        updateProductsDisplay(filteredProducts);
+      }
+    });
+    // Clear filters
+    clearFiltersBtn.addEventListener("click", () => {
+      currentPriceFilter = null;
+      selectedBrands.clear();
+      currentPage = 1;
+      //@ts-ignore
+      priceFilterInputs.forEach((input) => (input.checked = false));
+      //@ts-ignore
+      document
+        .querySelectorAll(".brand-checkbox")
+        .forEach((checkbox) => (checkbox.checked = false));
+      updateProductsDisplay(allProducts);
+    });
+    // Load more button
+    if (loadMoreButton) {
+      loadMoreButton.addEventListener("click", loadMoreProducts);
+    }
+  });
+ 
+  document.addEventListener('DOMContentLoaded',async () => {
+    // Mobile Filter Elements
+    const filterButton = document.getElementById('filter-button');
+    const filterOverlay = document.getElementById('filter-overlay');
+    const filterDrawer = document.getElementById('filter-drawer');
+    const closeDrawerBtn = document.getElementById('close-filter-drawer');
+    const mobileClearFiltersBtn = document.getElementById('mobile-clear-filters');
+
+    // Mobile Price Filter
+    const mobilePriceToggle = document.getElementById('mobile-price-toggle');
+    const mobilePriceDropdown = document.getElementById('mobile-price-dropdown');
+    const mobilePriceArrow = document.getElementById('mobile-price-arrow');
+    const mobilePriceInputs = document.querySelectorAll('input[name="mobile-price-filter"]');
+
+    // Mobile Brand Filter
+    const mobileBrandToggle = document.getElementById('mobile-brand-toggle');
+    const mobileBrandDropdown = document.getElementById('mobile-brand-dropdown');
+    const mobileBrandArrow = document.getElementById('mobile-brand-arrow');
+    // Open Drawer
+    const openDrawer = () => {
+        filterOverlay.classList.remove('opacity-0', 'pointer-events-none');
+        filterDrawer.classList.remove('translate-x-full');
+    };
+
+    // Close Drawer
+    const closeDrawer = () => {
+        filterOverlay.classList.add('opacity-0', 'pointer-events-none');
+        filterDrawer.classList.add('translate-x-full');
+    };
+
+    allProducts = await getAllProducts();
+    const uniqueBrands = getUniqueBrands(allProducts);
+    createMobileBrandOptions(uniqueBrands);
+    // Toggle Price Dropdown
+    mobilePriceToggle.addEventListener('click', () => {
+        mobilePriceDropdown.classList.toggle('hidden');
+        mobilePriceArrow.style.transform = mobilePriceDropdown.classList.contains('hidden') 
+            ? 'rotate(0)' 
+            : 'rotate(180deg)';
+    });
+
+    mobileBrandToggle.addEventListener("click", () => {
+      const isHidden = mobileBrandDropdown.classList.contains("hidden");
+      mobileBrandDropdown.classList.toggle("hidden");
+      mobileBrandArrow.style.transform = isHidden ? "rotate(180deg)" : "rotate(0)";
+    });
+    // Price Filter Change
+    mobilePriceInputs.forEach(input => {
+        input.addEventListener('change', (e) => {
+            currentPriceFilter = e.target.value;
+            const filteredProducts = filterProducts(allProducts);
+            updateProductsDisplay(filteredProducts);
+            closeDrawer();
+        });
+    });
+
+
+    // Mobile Clear Filters
+    mobileClearFiltersBtn.addEventListener('click', () => {
+        currentPriceFilter = null;
+        selectedBrands.clear();
+        
+        // Reset mobile inputs
+        mobilePriceInputs.forEach(input => input.checked = false);
+        document.querySelectorAll('.mobile-brand-checkbox').forEach(checkbox => checkbox.checked = false);
+        
+        // Reset desktop inputs
+        document.querySelectorAll('.brand-checkbox').forEach(checkbox => checkbox.checked = false);
+        document.querySelectorAll('input[name="price-filter"]').forEach(input => input.checked = false);
+        
+        updateProductsDisplay(allProducts);
+        closeDrawer();
+    });
+
+    // Event Listeners for Drawer
+    filterButton.addEventListener('click', openDrawer);
+    closeDrawerBtn.addEventListener('click', closeDrawer);
+    filterOverlay.addEventListener('click', closeDrawer);
+});
+
+</script>
+</html>

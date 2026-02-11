@@ -1,0 +1,290 @@
+---
+import CheckoutAddress from "../components/CheckoutAddress";
+import NavBar from "../components/NavBar";
+import ToastProvider from "../components/ToastProvider";
+import { ImgbaseUrl } from "../lib/config";
+
+
+---
+
+<NavBar  data-astro-prefetch/>
+<ToastProvider  />
+<head>
+  <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
+</head>
+<div class="pt-10 px-5 max-w-7xl mx-auto">
+  <h1 class="font-bold text-2xl font-serif pt-10 ">Checkout</h1>
+  
+  <div class="flex flex-col md:flex-row gap-6">
+    <!-- Left Column - Address Section -->
+    <div class="w-full md:w-2/3">
+      <CheckoutAddress   data-astro-prefetch />
+    </div>
+    
+    <!-- Right Column -->
+    <div class="w-full md:w-1/3">
+      <!-- Cart Items -->
+      <div class="border rounded-xl bg-white shadow-sm">
+        <div class="px-3 py-3 border-b">
+          <h2 class="text-lg font-bold font-serif">Cart Items</h2>
+        </div>
+        <div id="cart-items-container" class="max-h-[250px] overflow-y-auto px-5 py-4">
+          <!-- Cart items will be dynamically inserted here -->
+        </div>
+      </div>
+      
+      
+      <!-- Cart Summary -->
+      <div id="cart-summary" class="border mt-3 rounded-xl p-5 bg-white shadow-sm z-0 top-24">
+        <h2 class="text-xl font-bold font-serif mb-4">Payment Summary</h2>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- @ts-ignore -->
+<div id="order-success-overlay" class="hidden fixed inset-0 bg-neutral-900/90 flex items-center justify-center">
+  <div class="">
+    <dotlottie-player
+    src="https://lottie.host/a8bdb84a-9e8f-4003-8306-aab2ec44ac88/vg1TniQVX3.json"
+    background="transparent"
+    speed="1"
+    style="width: 500px; height: 500px;"
+    loop
+    autoplay>
+  </dotlottie-player>
+  <div class="flex fade-in justify-center items-center text-white  font-merr">
+    <p>Order Placed successfully</p>
+  </div>
+  </div>
+</div>
+
+<script>
+import { ImgbaseUrl } from "../lib/config";
+import { baseUrl } from "../lib/config";
+import {toast} from "react-toastify"
+    let userRole = 'customer';
+  
+    const getUserData = () => {
+      try {
+        const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+        userRole = userData.role || 'customer';
+        return userData;
+      } catch {
+        return { username: 'Guest', userId: null };
+      }
+    };
+  
+    // Get selected address from local storage
+    const getSelectedAddress = () => {
+      const storedAddress = localStorage.getItem('SelectedAddress');
+      return storedAddress ? JSON.parse(storedAddress) : null;
+    };
+  
+    // Fetch user and cart data
+    const userData = getUserData();
+    const cartItems = JSON.parse(localStorage.getItem('checkoutItems') || '[]');
+  
+    function calculatePrice(item) {
+      const offers = item.productId.offers;
+      let applicablePrice = userRole === "dealer" ? item.productId.dealerPrice : item.productId.customerPrice;
+  
+      if (offers && offers.length) {
+        for (const offer of offers) {
+          if (item.quantity >= offer.from && item.quantity <= offer.to) {
+            applicablePrice = userRole === "dealer" ? offer.dealerPrice : offer.customerPrice;
+            break;
+          } else if (item.quantity > offers[offers.length - 1].to) {
+            applicablePrice = userRole === "dealer"
+              ? offers[offers.length - 1].dealerPrice
+              : offers[offers.length - 1].customerPrice;
+          }
+        }
+      }
+  
+      return applicablePrice;
+    }
+  
+    function calculateTotalPrice(item) {
+      return calculatePrice(item) * item.quantity;
+    }
+  
+    const createOrder = async () => {
+      const selectedAddress = getSelectedAddress();
+      const products = cartItems.map(item => ({
+        productId: item.productId._id,
+        quantity: item.quantity
+      }));
+      if (!selectedAddress || !selectedAddress.address || !selectedAddress.address.flatNumber || !selectedAddress.address.receiverName) {
+    toast.error("Please Select an delivery address");
+   
+    return;
+  }
+  
+      const grandTotal = cartItems.reduce((sum, item) => sum + calculateTotalPrice(item), 0);
+  
+      const tag=selectedAddress.tag
+      const orderPayload = {
+        orderedBy: userData.username || userData.userid,
+        customerId: userData._id,
+        products: products,
+        deliveryAddress: {
+            [tag]:{
+            flatNumber: selectedAddress.address.flatNumber,
+            area: selectedAddress.address.area,
+            nearbyLandmark: selectedAddress.address.nearbyLandmark,
+            receiverName: selectedAddress.address.receiverName,
+            receiverMobileNumber: selectedAddress.address.receiverMobileNumber
+          }
+        },
+        deliveryCharges: 0,
+        grandTotal: grandTotal
+      };
+  
+      try {
+        const response = await fetch(`${baseUrl}/order/create`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(orderPayload),
+        });
+  
+        if (response.ok) {
+          toast.success("Order created successfully");
+      localStorage.removeItem("SelectedAddress");
+
+      const overlay = document.getElementById("order-success-overlay");
+      overlay.classList.remove("hidden");
+
+      setTimeout(() => {
+        overlay.classList.add("hidden");
+        window.location.href = "/"; // Replace with your target route
+      }, 2000);
+         
+        } else {
+          toast.error("Failed to create order");
+          // Handle error
+        }
+      } catch (error) {
+        toast.error("Error creating order:", error);
+      }
+    };
+  
+    function renderCartItems() {
+      const container = document.getElementById('cart-items-container');
+      if (!container) return;
+  
+      const itemsHTML = cartItems.map(item => {
+        const price = calculatePrice(item);
+  
+        return `
+        <div class="flex items-start gap-4 pb-4 mb-4 border-b last:border-b-0">
+          <div class="w-24 h-24 border rounded-lg overflow-hidden flex-shrink-0 bg-white">
+            <img 
+              src="${ImgbaseUrl}${item.productId.productImages[0]}"
+              alt="${item.productId.productName}"
+              class="w-full h-full object-contain p-2"
+            />
+          </div>
+          <div class="flex-1 min-w-0"> <!-- min-w-0 prevents flex child from overflowing -->
+            <h3 class="font-bold text-lg capitalize truncate">
+              ${item.productId.productName}
+            </h3>
+            <p class="text-gray-600 text-sm mb-2">Brand: ${item.productId.brand}</p>
+            <div class="flex justify-between items-center">
+              <div class="flex flex-col gap-1">
+                <span class="text-sm text-green-700">Inclusive GST</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-gray-500 text-sm line-through">₹${item.productId.strikePrice}</span>
+                  <span class="text-lg font-semibold">₹${price}</span>
+                </div>
+              </div>
+              <div class="text-sm bg-gray-50 rounded-full px-5 py-1.5 border">
+                Qty: ${item.quantity}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  
+    container.innerHTML = itemsHTML;
+  }
+
+  
+    function renderCartSummary() {
+      const container = document.getElementById('cart-summary');
+      if (!container) return;
+  
+      const subtotal = cartItems.reduce((sum, item) => sum + calculateTotalPrice(item), 0);
+  
+      container.innerHTML = `
+        <h2 class="text-xl font-bold font-serif mb-4">Payment Summary</h2>
+        <div class="space-y-3">
+          <div class="flex justify-between">
+            <span class="text-gray-600">Subtotal</span>
+            <span class="font-medium">₹${subtotal}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-600">Delivery Charges</span>
+            <span class="font-medium">
+              <span class="text-green-600">Free Delivery</span>
+              <span class="line-through ml-2">₹50</span>
+            </span>
+          </div>
+          <div class="border-t pt-3">
+            <div class="flex justify-between">
+              <span class="font-semibold">Total</span>
+              <span class="font-bold">₹${subtotal}</span>
+            </div>
+          </div>
+        </div>
+        <div class='flex justify-center'>
+          <button 
+          id="place-order-button"
+            class="px-20 bg-blue-800/90 text-xl font-bold text-white py-3 rounded-full font-merr hover:bg-blue-900/90 transition-colors mt-6"
+            onclick="createOrder()"
+          >
+            Place Order
+          </button>
+        </div>
+      `;
+
+      const placeOrderButton = document.getElementById('place-order-button');
+  if (placeOrderButton) {
+    placeOrderButton.addEventListener('click', createOrder);
+  }
+    }
+  
+    // Initialize the page
+    userRole = getUserData().role;
+    renderCartItems();
+    renderCartSummary();
+  </script>
+  
+  
+
+<style>
+  .rotate-180 {
+    transform: rotate(180deg);
+    transition: transform 0.3s ease;
+  }
+  .hidden {
+    display: none;
+  }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      font-size: small;
+    }
+    to {
+      opacity: 1;
+      font-size:xx-large;
+    }
+  }
+
+  /* Apply the fade-in animation */
+  .fade-in {
+    animation: fadeIn 1s ease-in forwards;
+  }
+</style>

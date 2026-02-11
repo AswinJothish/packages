@@ -1,0 +1,264 @@
+---
+import NavBar from "../components/NavBar";
+import profile from "../../public/images/profile.png";
+import location from "../../public/images/location.png";
+import order from "../../public/images/choices.png";
+import ProfileSection from "../components/ProfileSection.tsx";
+import AddressSection from "../components/AddressSection.tsx";
+import OrderSection from "../components/OrderSection.tsx";
+import ToastProvider from "../components/ToastProvider";
+import { MdArrowBack } from "react-icons/md";
+---
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sunstar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
+</head>
+<body>
+    <ToastProvider  /> 
+    <NavBar  />
+    
+    <div class="flex md:pt-20">
+        <!-- Left Section -->
+        <div class="md:w-1/3 w-full relative">
+            <div id="mobileMenuView" class="md:block">
+                <div class=" pt-0 px-5 ">
+                    <button id="backButton" class="flex items-center text-gray-400 hover:text-blue-600/90 gap-2">
+                        <span><MdArrowBack  /></span>
+                        <span>Back</span>
+                    </button>
+                </div>
+                
+                <div class="p-5">
+                    <!-- Profile Card -->
+                    <div class="flex items-center px-4 py-6 border shadow rounded" data-section="profile">
+                        <div class="border rounded-full">
+                            <img id="profile-image-display" src={profile.src} alt="profile" class="h-16 w-16 rounded-full object-cover">
+                        </div>
+                        <div class="flex flex-col pl-5 gap-3">
+                            <p class="text-base font-serif font-bold">Hello! <span id="username-display"></span></p>
+                            <p class="font-merr text-base" id="mobile-display"></p>
+                        </div>
+                    </div>
+
+                    <!-- Menu Section -->
+                    <div id="menuSection">
+                        <h1 class="text-xl font-bold font-serif py-7">My Info</h1>
+                        <div>
+                            <ul class="font-thin font-custom_thin">
+                                <li class="p-5 border gap-3 flex items-center cursor-pointer" data-section="profile">
+                                    <img src={profile.src} alt="" class="w-6 h-6"> <span>Profile</span>
+                                </li>
+                                <li class="p-5 border gap-3 flex items-center cursor-pointer" data-section="address">
+                                    <img src={location.src} alt="" class="w-6 h-6"> <span>Address</span>
+                                </li>
+                                <li class="p-5 border gap-3 flex items-center cursor-pointer" data-section="orders">
+                                    <img src={order.src} alt="" class="w-6 h-6"> <span>Orders</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Mobile Content Sections -->
+                    <div id="mobileContentSections" class="md:hidden hide">
+                        <div id="mobileProfileSection" class="section-content hide">
+                            <ProfileSection client:idle />
+                        </div>
+                        <div id="mobileAddressSection" class="section-content hide">
+                            <AddressSection client:idle />
+                        </div>
+                        <div id="mobileOrdersSection" class="section-content hide">
+                            <OrderSection client:idle />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Section (Desktop Only) -->
+        <div class="w-full relative md:block hidden">
+            <div class="p-6">
+                <div id="profileSection" class="section-content">
+                    <ProfileSection  />
+                </div>
+                <div id="addressSection" class="section-content hide">
+                    <AddressSection  />
+                </div>
+                <div id="ordersSection" class="section-content hide">
+                    <OrderSection  />
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+<style>
+    .active-section {
+        background-color: rgb(247, 247, 247);
+    }
+    .hide {
+        display: none;
+    }
+</style>
+
+<script>
+    import { ImgbaseUrl } from "../lib/config";
+    import profile from "../../public/images/profile.png";
+    
+    let hasPageLoaded = false;
+    let isMobileView = window.innerWidth < 768;
+    let activeSection = null;
+
+    function goBack() {
+        if (isMobileView) {
+            showMobileMenu();
+            activeSection = null;
+            removeActiveClasses();
+        } else {
+            window.location.href = '/';
+        }
+    }
+
+    function showMobileMenu() {
+        const menuSection = document.getElementById('menuSection');
+        const mobileContentSections = document.getElementById('mobileContentSections');
+        const backButton = document.getElementById('backButton');
+        const profileCard = document.querySelector('[data-section="profile"].flex');
+        
+        if (menuSection && mobileContentSections && backButton && profileCard) {
+            menuSection.classList.remove('hide');
+            mobileContentSections.classList.add('hide');
+            backButton.classList.add('hide');
+            profileCard.classList.remove('hide'); // Show profile card
+        }
+    }
+
+    function showMobileSection(sectionId) {
+        if (!isMobileView) return;
+
+        const menuSection = document.getElementById('menuSection');
+        const mobileContentSections = document.getElementById('mobileContentSections');
+        const backButton = document.getElementById('backButton');
+        const profileCard = document.querySelector('[data-section="profile"].flex');
+        
+        if (menuSection && mobileContentSections && backButton && profileCard) {
+            // Hide menu and profile card, show content container and back button
+            menuSection.classList.add('hide');
+            mobileContentSections.classList.remove('hide');
+            backButton.classList.remove('hide');
+            profileCard.classList.add('hide'); // Hide profile card when section is selected
+
+            // Hide all sections and show the selected one
+            const sections = document.querySelectorAll('.section-content');
+            sections.forEach(section => section.classList.add('hide'));
+            
+            const selectedSection = document.getElementById(`mobile${sectionId.charAt(0).toUpperCase() + sectionId.slice(1)}Section`);
+            if (selectedSection) {
+                selectedSection.classList.remove('hide');
+            }
+            
+            // Update active section
+            activeSection = sectionId;
+        }
+    }
+
+    function setupNavigation() {
+        const menuItems = document.querySelectorAll('[data-section]');
+        const sections = document.querySelectorAll('.section-content');
+
+        menuItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const section = item.getAttribute('data-section');
+                if (section) {
+                    if (isMobileView) {
+                        showMobileSection(section);
+                    } else {
+                        // Desktop navigation logic
+                        sections.forEach(s => s.classList.add('hide'));
+                        const selectedSection = document.getElementById(`${section}Section`);
+                        if (selectedSection) {
+                            selectedSection.classList.remove('hide');
+                        }
+                    }
+
+                    // Set active class
+                    removeActiveClasses();
+                    item.classList.add('active-section');
+                }
+            });
+        });
+
+        // Check for query parameter on page load
+        const urlParams = new URLSearchParams(window.location.search);
+        const sectionParam = urlParams.get('section');
+
+        // If section parameter exists, show that section
+        if (sectionParam && ['profile', 'orders', 'address'].includes(sectionParam)) {
+            if (isMobileView) {
+                showMobileSection(sectionParam);
+            } else {
+                sections.forEach(s => s.classList.add('hide'));
+                const selectedSection = document.getElementById(`${sectionParam}Section`);
+                if (selectedSection) {
+                    selectedSection.classList.remove('hide');
+                }
+            }
+            // Set the active class for the corresponding menu item
+            const menuItem = Array.from(menuItems).find(item => item.getAttribute('data-section') === sectionParam);
+            if (menuItem) {
+                menuItem.classList.add('active-section');
+            }
+        } else {
+            showMobileSection('profile'); // Default to profile on mobile
+        }
+    }
+
+    function removeActiveClasses() {
+        const menuItems = document.querySelectorAll('[data-section]');
+        menuItems.forEach(item => {
+            item.classList.remove('active-section');
+        });
+    }
+
+    // Listen for custom event from ProfileSection
+    window.addEventListener('userDataLoaded', (event) => {
+        const userData = event.detail;
+        const usernameDisplay = document.getElementById('username-display');
+        const mobileDisplay = document.getElementById('mobile-display');
+        const profileImageDisplay = document.getElementById('profile-image-display');
+        
+        if (usernameDisplay && userData.username) {
+            usernameDisplay.textContent = userData.username;
+        }
+        if (mobileDisplay && userData.mobileNumber) {
+            mobileDisplay.textContent = userData.mobileNumber;
+        }
+        if (profileImageDisplay) {
+            profileImageDisplay.src = userData.profileImage 
+                ? `${ImgbaseUrl}${userData.profileImage}` 
+                : profile.src;
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        setupNavigation();
+        
+        // Add event listener for the back button
+        const backButton = document.getElementById('backButton');
+        if (backButton) {
+            backButton.addEventListener('click', goBack);
+        }
+
+        // Update isMobileView on resize
+        window.addEventListener('resize', () => {
+            isMobileView = window.innerWidth < 768;
+            if (!isMobileView) {
+                showMobileMenu();
+            }
+        });
+    });
+</script>
+</html>

@@ -1,0 +1,317 @@
+---
+import { ImgbaseUrl, baseUrl } from '../../lib/config';
+import Layout from '../layouts/Layout.astro';
+import { IoIosArrowForward } from "react-icons/io";
+import ProductDisplay from '../../components/productDisplay';
+import ToastProvider from '../../components/ToastProvider';
+// Interfaces
+interface Offer {
+  from: number;
+  to: number;
+  customerPrice: number;
+}
+
+interface Specification {
+  [key: string]: {
+    [key: string]: string;
+  };
+}
+
+interface Product {
+  productName: string;
+  productCode: string;
+  productImages: string[];
+  customerPrice: number;
+  description:string;
+  strikePrice: number;
+  brand: string;
+  category: string;
+  stock: number;
+  offers: Offer[];
+  specifications: Specification;
+  general: {
+    [key: string]: string;
+  };
+}
+
+// Get the ID and fetch product data
+const { id } = Astro.params;
+let product: Product | null = null;
+let error: string | null = null;
+
+try {
+  const response = await fetch(`${baseUrl}/products/get?id=${id}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch product: ${response.status}`);
+  }
+  const data = await response.json();
+  product = data.data;
+} catch (err) {
+  error = err instanceof Error ? err.message : 'Failed to fetch product';
+  return Astro.redirect('/error');
+}
+
+// Redirect if no product found
+if (!product) {
+  return Astro.redirect('/404');
+}
+---
+
+<!-- Expose product data to client-side JavaScript -->
+<script define:vars={{ product }}>
+  window.initialData = {
+    general: product.general,
+    specifications: product.specifications
+  };
+</script>
+
+<Layout title={product.productName} >
+  <ToastProvider client:idle/>
+  <ProductDisplay 
+  productId={id}
+  onError={() => console.error('Failed to load product')}
+  
+/>
+</Layout>
+
+<script>
+
+document.addEventListener('DOMContentLoaded', () => {
+    const description = document.getElementById('productDescription');
+    const toggleBtn = document.getElementById('toggleDescription');
+    const toggleText = document.getElementById('toggleText');
+    const toggleIcon = document.getElementById('toggleIcon');
+    let isExpanded = false;
+
+    if (description && toggleBtn && toggleText && toggleIcon) {
+      // Check if content needs toggle button
+      const checkHeight = () => {
+        // Get the line height and calculate height of 2 lines
+        const lineHeight = parseInt(window.getComputedStyle(description).lineHeight);
+        const twoLinesHeight = lineHeight * 2;
+        
+        // Show/hide toggle button based on content height
+        if (description.scrollHeight <= twoLinesHeight) {
+          toggleBtn.style.display = 'none';
+        } else {
+          toggleBtn.style.display = 'flex';
+        }
+      };
+
+      toggleBtn.addEventListener('click', () => {
+        isExpanded = !isExpanded;
+        
+        if (isExpanded) {
+          description.style.webkitLineClamp = 'unset';
+          toggleText.textContent = 'View Less';
+          toggleIcon.style.transform = 'rotate(180deg)';
+        } else {
+          description.style.webkitLineClamp = '2';
+          toggleText.textContent = 'View More';
+          toggleIcon.style.transform = 'rotate(0)';
+        }
+      });
+
+      // Initial check
+      checkHeight();
+
+      // Recheck on window resize
+      window.addEventListener('resize', checkHeight);
+    }
+  });
+
+  let showMore = false;
+
+  // Function to render specifications
+  function renderSpecifications() {
+    const product = window.initialData;
+    
+    const generalEntries = Object.entries(product.general || {}).map(([key, value]) => ({
+      section: 'General',
+      key,
+      value
+    }));
+
+    const specificationsEntries = Object.entries(product.specifications || {}).flatMap(([specKey, specValues]) =>
+      Object.entries(specValues).map(([key, value]) => ({
+        section: specKey,
+        key,
+        value
+      }))
+    );
+
+    const allEntries = [...generalEntries, ...specificationsEntries];
+    const displayedEntries = showMore ? allEntries : allEntries.slice(0, 2);
+    
+    const entriesContainer = document.getElementById('entriesContainer');
+    const fadePreview = document.getElementById('fadePreview');
+    const previewItem = document.getElementById('previewItem');
+    const toggleButton = document.getElementById('toggleSpecifications');
+    
+    if (!entriesContainer || !fadePreview || !previewItem || !toggleButton) return;
+
+    // Clear existing content
+    entriesContainer.innerHTML = '';
+
+    // Render visible entries
+    displayedEntries.forEach((entry, index) => {
+      const entryElement = document.createElement('div');
+      entryElement.className = 'mb-2';
+      
+      // Add section heading if needed
+      if (index === 0 || displayedEntries[index - 1].section !== entry.section) {
+        entryElement.innerHTML = `
+          <h3 class="text-lg font-semibold bg-neutral-100 p-1 mb-2">${entry.section}</h3>
+        `;
+      }
+      
+      entryElement.innerHTML += `
+        <div class="flex justify-between py-2 ">
+          <div class="w-1/2"> <span class="font-medium text-neutral-500">${entry.key}</span> </div>
+         <div class="w-1/2"> <span class='text-neutral-500'>${entry.value}</span></div>
+         
+        </div>
+      `;
+      
+      entriesContainer.appendChild(entryElement);
+    });
+
+    // Show/hide preview and toggle button based on entries length
+    if (allEntries.length > 2) {
+      toggleButton.classList.remove('hidden');
+      toggleButton.textContent = showMore ? 'Show Less' : 'Show More';
+      
+      // Show faded 4th line when collapsed
+      if (!showMore && allEntries[2]) {
+        fadePreview.classList.remove('hidden');
+        previewItem.innerHTML = `
+          <div class="flex justify-between py-2">
+            <div class="w-1/2">   <span class="font-medium">${allEntries[2].key}</span> </div>
+            <div class="w-1/2">   <span>${allEntries[2].value}</span> </div>
+            
+          </div>
+        `;
+      } else {
+        fadePreview.classList.add('hidden');
+      }
+    } else {
+      toggleButton.classList.add('hidden');
+      fadePreview.classList.add('hidden');
+    }
+  }
+
+  // Initialize specifications
+  document.addEventListener('DOMContentLoaded', () => {
+    const toggleButton = document.getElementById('toggleSpecifications');
+    if (toggleButton) {
+      toggleButton.addEventListener('click', () => {
+        showMore = !showMore;
+        renderSpecifications();
+      });
+    }
+    
+    // Initial render
+    renderSpecifications();
+  });
+
+  // Image gallery functionality
+  document.addEventListener('DOMContentLoaded', () => {
+    const mainImage = document.querySelector('#mainImage img');
+    const thumbnails = document.querySelectorAll('.thumbnail');
+
+    thumbnails.forEach(thumbnail => {
+      thumbnail.addEventListener('click', (e) => {
+        const img = e.target;
+        if (mainImage && img) {
+          mainImage.src = img.src;
+          mainImage.alt = img.alt;
+
+          thumbnails.forEach(thumb => 
+            thumb.parentElement?.classList.remove('ring-1', 'ring-blue-500')
+          );
+
+          img.parentElement?.classList.add('ring-1', 'ring-blue-500');
+        }
+      });
+    });
+  });
+
+  // Offer dropdown functionality
+  document.addEventListener('DOMContentLoaded', () => {
+    const viewOfferButton = document.getElementById('viewOfferButton');
+    const offerDropdown = document.getElementById('offerDropdown');
+
+    function toggleOfferDropdown(event) {
+      offerDropdown.classList.toggle('hidden');
+      if (!offerDropdown.classList.contains('hidden')) {
+        document.addEventListener('click', handleClickOutside);
+      }
+    }
+
+    function handleClickOutside(event) {
+      if (!offerDropdown.contains(event.target) && event.target !== viewOfferButton) {
+        offerDropdown.classList.add('hidden');
+        document.removeEventListener('click', handleClickOutside);
+      }
+    }
+
+    viewOfferButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleOfferDropdown(event);
+    });
+  });
+</script>
+
+<style>
+  .container {
+    max-width: 1200px;
+  }
+  #productDescription {
+    text-overflow: ellipsis;
+  }
+  
+  #mainImage img {
+    transition: all 0.3s ease-in-out;
+  }
+  
+  .thumbnail {
+    transition: opacity 0.2s ease-in-out;
+  }
+  
+  .thumbnail:hover {
+    opacity: 0.8;
+  }
+
+
+  #offerDropdown {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  #offerDropdown.hidden {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  #offerDropdown:not(.hidden) {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .md\:overflow-y-auto {
+    scrollbar-width: thin;
+    scrollbar-color: #CBD5E0 #EDF2F7;
+  }
+
+  .md\:overflow-y-auto::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .md\:overflow-y-auto::-webkit-scrollbar-track {
+    background: #EDF2F7;
+  }
+
+  .md\:overflow-y-auto::-webkit-scrollbar-thumb {
+    background-color: #CBD5E0;
+    border-radius: 4px;
+  }
+</style>
