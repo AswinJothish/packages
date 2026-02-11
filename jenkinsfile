@@ -3,63 +3,84 @@ pipeline {
 
     environment {
         BUN_BIN = "/opt/bun/bin/bun"
-        DEPLOY_DIR = "/var/jenkins_home/deploy"
-
+        EC2_USER = "ubuntu"
+        EC2_HOST = "43.205.141.147"
+        REMOTE_DIR = "/var/www/src/"
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 git url: 'https://github.com/AswinJothish/packages.git', branch: 'main'
             }
         }
 
-        stage('Build Frontends') {
+        stage('Install Dependencies') {
             steps {
-                // Client frontend
                 dir('client') {
                     sh "${BUN_BIN} install"
-                    sh "${BUN_BIN} run build"
                 }
-
-                // Admin frontend
                 dir('admin') {
                     sh "${BUN_BIN} install"
+                }
+                dir('server') {
+                    sh "${BUN_BIN} install"
+                }
+            }
+        }
+
+        stage('Build Frontends') {
+            steps {
+                dir('client') {
+                    sh "${BUN_BIN} run build"
+                }
+                dir('admin') {
                     sh "${BUN_BIN} run build"
                 }
             }
         }
 
-        stage('Deploy Frontends') {
+        stage('Deploy to EC2') {
             steps {
-                sh "mkdir -p ${DEPLOY_DIR}/client"
-                sh "rm -rf ${DEPLOY_DIR}/client/*"
-                sh "cp -r client/dist/* ${DEPLOY_DIR}/client/"
+                sshagent(['ec2-ssh-key']) {
+                    sh """
+                    # Create remote directories
+                    ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
+                        mkdir -p ${REMOTE_DIR}/client &&
+                        mkdir -p ${REMOTE_DIR}/admin &&
+                        mkdir -p ${REMOTE_DIR}/server
+                    '
 
-                sh "mkdir -p ${DEPLOY_DIR}/admin"
-                sh "rm -rf ${DEPLOY_DIR}/admin/*"
-                sh "cp -r admin/dist/* ${DEPLOY_DIR}/admin/"
-            }
-        }
+                    # Deploy client
+                    rsync -avz --delete client/dist/ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}/client/
 
-        stage('Deploy Backend') {
-            steps {
-                sh "mkdir -p ${DEPLOY_DIR}/server"
-                sh "rm -rf ${DEPLOY_DIR}/server/*"
-                sh "cp -r server/* ${DEPLOY_DIR}/server/"
+                    # Deploy admin
+                    rsync -avz --delete admin/dist/ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}/admin/
 
-                dir("${DEPLOY_DIR}/server") {
-                    sh "${BUN_BIN} install"
+                    # Deploy backend source
+                    rsync -avz --delete server/ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}/server/
 
-                    sh "pm2 delete server-backend || true"
-                    sh "pm2 start ${BUN_BIN} --name server-backend -- run src/index.ts"
+                    # Restart backend on EC2
+                    ssh ${EC2_USER}@${EC2_HOST} '
+                        cd ${REMOTE_DIR}/server &&
+                        /opt/bun/bin/bun install --production &&
+                        pm2 delete server-backend || true &&
+                        pm2 start /opt/bun/bin/bun --name server-backend -- run src/index.ts &&
+                        pm2 save
+                    '
+                    """
                 }
             }
         }
     }
 
     post {
-        success { echo "Deployment complete!" }
-        failure { echo "Deployment failed!" }
+        success {
+            echo "Deployment completed successfully."
+        }
+        failure {
+            echo "Deployment failed."
+        }
     }
 }
