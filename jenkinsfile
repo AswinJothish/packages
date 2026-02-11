@@ -5,7 +5,7 @@ pipeline {
         BUN_BIN = "/opt/bun/bin/bun"
         EC2_USER = "ubuntu"
         EC2_HOST = "43.205.141.147"
-        REMOTE_DIR = "/var/www/src/"
+        REMOTE_DIR = "/var/www/src"
     }
 
     stages {
@@ -18,26 +18,17 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                dir('client') {
-                    sh "${BUN_BIN} install"
-                }
-                dir('admin') {
-                    sh "${BUN_BIN} install"
-                }
-                dir('server') {
-                    sh "${BUN_BIN} install"
-                }
+                dir('client') { sh "${BUN_BIN} install" }
+                dir('admin') { sh "${BUN_BIN} install" }
+                dir('server') { sh "${BUN_BIN} install" }
             }
         }
 
-        stage('Build Frontends') {
+        stage('Build') {
             steps {
-                dir('client') {
-                    sh "${BUN_BIN} run build"
-                }
-                dir('admin') {
-                    sh "${BUN_BIN} run build"
-                }
+                dir('client') { sh "${BUN_BIN} run build" }
+                dir('admin') { sh "${BUN_BIN} run build" }
+                dir('server') { sh "${BUN_BIN} run build" }
             }
         }
 
@@ -45,28 +36,20 @@ pipeline {
             steps {
                 sshagent(['ec2-ssh-key']) {
                     sh """
-                    # Create remote directories
                     ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
                         mkdir -p ${REMOTE_DIR}/client &&
                         mkdir -p ${REMOTE_DIR}/admin &&
                         mkdir -p ${REMOTE_DIR}/server
                     '
 
-                    # Deploy client
                     rsync -avz --delete client/dist/ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}/client/
-
-                    # Deploy admin
                     rsync -avz --delete admin/dist/ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}/admin/
+                    rsync -avz --delete server/dist/ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}/server/
 
-                    # Deploy backend source
-                    rsync -avz --delete server/ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}/server/
-
-                    # Restart backend on EC2
                     ssh ${EC2_USER}@${EC2_HOST} '
                         cd ${REMOTE_DIR}/server &&
-                        /opt/bun/bin/bun install --production &&
                         pm2 delete server-backend || true &&
-                        pm2 start /opt/bun/bin/bun --name server-backend -- run src/index.ts &&
+                        pm2 start index.js --name server-backend &&
                         pm2 save
                     '
                     """
@@ -76,11 +59,7 @@ pipeline {
     }
 
     post {
-        success {
-            echo "Deployment completed successfully."
-        }
-        failure {
-            echo "Deployment failed."
-        }
+        success { echo "Deployment completed successfully." }
+        failure { echo "Deployment failed." }
     }
 }
