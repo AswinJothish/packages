@@ -1,0 +1,64 @@
+pipeline {
+    agent any
+
+    environment {
+        BUN_BIN = "/opt/bun/bin/bun"
+        DEPLOY_DIR = "/var/www"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com/AswinJothish/packages.git', branch: 'main'
+            }
+        }
+
+        stage('Build Frontends') {
+            steps {
+                // Client frontend
+                dir('client') {
+                    sh "${BUN_BIN} install"
+                    sh "${BUN_BIN} run build"
+                }
+
+                // Admin frontend
+                dir('admin') {
+                    sh "${BUN_BIN} install"
+                    sh "${BUN_BIN} run build"
+                }
+            }
+        }
+
+        stage('Deploy Frontends') {
+            steps {
+                sh "mkdir -p ${DEPLOY_DIR}/client"
+                sh "rm -rf ${DEPLOY_DIR}/client/*"
+                sh "cp -r client/dist/* ${DEPLOY_DIR}/client/"
+
+                sh "mkdir -p ${DEPLOY_DIR}/admin"
+                sh "rm -rf ${DEPLOY_DIR}/admin/*"
+                sh "cp -r admin/dist/* ${DEPLOY_DIR}/admin/"
+            }
+        }
+
+        stage('Deploy Backend') {
+            steps {
+                sh "mkdir -p ${DEPLOY_DIR}/server"
+                sh "rm -rf ${DEPLOY_DIR}/server/*"
+                sh "cp -r server/* ${DEPLOY_DIR}/server/"
+
+                dir("${DEPLOY_DIR}/server") {
+                    sh "${BUN_BIN} install"
+
+                    sh "pm2 delete server-backend || true"
+                    sh "pm2 start ${BUN_BIN} --name server-backend -- run src/index.ts"
+                }
+            }
+        }
+    }
+
+    post {
+        success { echo "Deployment complete!" }
+        failure { echo "Deployment failed!" }
+    }
+}
