@@ -3,8 +3,8 @@ pipeline {
 
     environment {
         BUN_BIN = "/opt/bun/bin/bun"
-        DEPLOY_DIR = "DEPLOY_DIR = "/var/jenkins_home/deploy"
-"
+        DEPLOY_DIR = "/var/jenkins_home/deploy"
+
     }
 
     stages {
