@@ -28,7 +28,7 @@ pipeline {
             steps {
                 dir('client') { sh "${BUN_BIN} run build" }
                 dir('admin') { sh "${BUN_BIN} run build" }
-                dir('server') { sh "${BUN_BIN} run build" }
+                //dir('server') { sh "${BUN_BIN} run build" }
             }
         }
 
